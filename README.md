@@ -79,6 +79,27 @@
 git clone https://github.com/sherme/sherme.git && cd sherme && chmod +x install.sh && ./install.sh
 ```
 
+> The installer **automatically detects your OS** and uses the right package manager.
+
+## 🖥️ Cross-Platform Compatibility
+
+| OS | Package Manager | Auto-Detected |
+|----|-----------------|---------------|
+| Debian / Ubuntu / Kali / Parrot | `apt` | ✅ |
+| Fedora / RHEL / CentOS / Rocky / Alma | `dnf` / `yum` | ✅ |
+| Arch / Manjaro / EndeavourOS | `pacman` | ✅ |
+| openSUSE | `zypper` | ✅ |
+| Alpine Linux | `apk` | ✅ |
+| macOS | `brew` (Homebrew) | ✅ |
+| FreeBSD / OpenBSD / NetBSD | `pkg` | ✅ |
+| Windows (MSYS2 / Git Bash) | `pacman` / `choco` / `winget` | ✅ |
+| Windows (WSL) | matches chosen distro | ✅ |
+
+Sherme is a single portable Bash script with **no OS-specific binaries**:
+- `timeout` is wrapped with a portable fallback (macOS/BSD don't ship GNU `timeout`)
+- All Go-based tools compile identically on every platform
+- `install.sh` maps each tool to the correct package name per OS and falls back to `go install` / `pip` when a distro lacks a package
+
 ### Install Dependencies
 
 **Kali Linux / Parrot OS:**

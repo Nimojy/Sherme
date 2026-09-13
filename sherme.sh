@@ -49,7 +49,126 @@ TIMEOUT=10
 USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 VERBOSE=0
 SILENT=0
+PHASE="all"
+AUTO_YES=0
+JSON_OUTPUT=0
 TOOLS_LIST="subfinder gobuster feroxbuster amass assetfinder waybackurls gau ffuf nikto whatweb dnsrecon theharvester curl wpscan dnsenum sublist3r nuclei httpx naabu katana dalfox crlfuzz sqlmap dnsx jq"
+
+# Enable ** globbing where supported (bash 4+; harmless elsewhere)
+shopt -s globstar 2>/dev/null || true
+
+# ----------------------------- OS DETECTION ----------------------------- #
+OS_FAMILY="generic"
+PKG_MANAGER=""
+PKG_INSTALL=""
+SUDO_CMD=""
+
+detect_os() {
+    if [ "$(id -u)" -eq 0 ]; then
+        SUDO_CMD=""
+    elif command -v sudo &> /dev/null; then
+        SUDO_CMD="sudo"
+    else
+        SUDO_CMD=""
+    fi
+
+    case "$(uname -s)" in
+        Darwin)
+            OS_FAMILY="macos"
+            PKG_MANAGER="brew"
+            PKG_INSTALL="brew install"
+            ;;
+        MINGW*|MSYS*|CYGWIN*)
+            OS_FAMILY="windows"
+            if command -v pacman &> /dev/null; then
+                PKG_MANAGER="pacman"
+                PKG_INSTALL="pacman -S --noconfirm"
+            elif command -v choco &> /dev/null; then
+                PKG_MANAGER="choco"
+                PKG_INSTALL="choco install -y"
+            else
+                PKG_MANAGER="winget"
+                PKG_INSTALL="winget install"
+            fi
+            ;;
+        FreeBSD|OpenBSD|NetBSD)
+            OS_FAMILY="bsd"
+            PKG_MANAGER="pkg"
+            PKG_INSTALL="pkg install -y"
+            ;;
+        Linux)
+            if [ -f /etc/alpine-release ]; then
+                OS_FAMILY="alpine"
+                PKG_MANAGER="apk"
+                PKG_INSTALL="apk add --no-cache"
+            elif [ -f /etc/arch-release ]; then
+                OS_FAMILY="arch"
+                PKG_MANAGER="pacman"
+                PKG_INSTALL="pacman -S --noconfirm"
+            elif [ -f /etc/redhat-release ] || grep -qiE 'fedora|rhel|centos|rocky|almalinux|amazon' /etc/os-release 2>/dev/null; then
+                OS_FAMILY="redhat"
+                if command -v dnf &> /dev/null; then
+                    PKG_MANAGER="dnf"
+                    PKG_INSTALL="dnf install -y"
+                else
+                    PKG_MANAGER="yum"
+                    PKG_INSTALL="yum install -y"
+                fi
+            elif grep -qi 'suse' /etc/os-release 2>/dev/null; then
+                OS_FAMILY="suse"
+                PKG_MANAGER="zypper"
+                PKG_INSTALL="zypper install -y"
+            elif [ -f /etc/debian_version ] || grep -qiE 'debian|ubuntu|kali|parrot' /etc/os-release 2>/dev/null; then
+                OS_FAMILY="debian"
+                PKG_MANAGER="apt"
+                PKG_INSTALL="apt-get install -y"
+            else
+                OS_FAMILY="linux-other"
+                PKG_MANAGER=""
+                PKG_INSTALL=""
+            fi
+            ;;
+        *)
+            OS_FAMILY="generic"
+            PKG_MANAGER=""
+            PKG_INSTALL=""
+            ;;
+    esac
+}
+
+detect_os
+
+# ----------------------------- PORTABLE HELPERS ----------------------------- #
+# timeout_cmd - GNU timeout is not available on macOS/BSD by default
+timeout_cmd() {
+    local secs=$1
+    shift
+    if command -v timeout &> /dev/null; then
+        timeout "$secs" "$@"
+    else
+        "$@" &
+        local pid=$!
+        {
+            sleep "$secs"
+            kill -9 "$pid" 2>/dev/null
+        } &
+        local killer=$!
+        wait "$pid" 2>/dev/null
+        kill "$killer" 2>/dev/null
+        wait "$killer" 2>/dev/null
+    fi
+}
+
+# pkg_install - install package(s) using the detected native package manager
+pkg_install() {
+    if [ -z "$PKG_MANAGER" ]; then
+        log_warning "No supported package manager detected - cannot install: $*"
+        return 1
+    fi
+    log_substep "Installing via ${PKG_MANAGER}: $*"
+    # shellcheck disable=SC2086
+    $SUDO_CMD $PKG_INSTALL "$@" 2>/dev/null
+}
 
 # ----------------------------- BANNER ----------------------------- #
 print_banner() {
@@ -155,7 +274,9 @@ cleanup() {
     if [ -n "$running_jobs" ]; then
         echo ""
         echo -e "${YELLOW}[*] Cleaning up background processes...${RESET}"
-        echo "$running_jobs" | xargs -r kill 2>/dev/null
+        for pid in $running_jobs; do
+            kill "$pid" 2>/dev/null
+        done
         wait 2>/dev/null
         echo -e "${GREEN}[✓] Cleanup complete.${RESET}"
     fi
@@ -180,8 +301,8 @@ install_tool() {
             fi
             ;;
         apt)
-            sudo apt-get install -y "$tool" 2>/dev/null
-            log_success "${tool} installed via apt"
+            pkg_install "$tool"
+            log_success "${tool} installed via ${PKG_MANAGER}"
             ;;
         pip)
             pip install "$tool" 2>/dev/null
@@ -207,7 +328,13 @@ auto_install_missing() {
     log_warning "Some tools are missing. Would you like to auto-install them?"
     echo -e "  ${YELLOW}Missing tools: ${TOOLS_MISSING[*]}${RESET}"
     echo ""
-    read -p "$(echo -e ${BBLUE}'Install missing tools? [y/N]: '${RESET})" install_choice
+    
+    install_choice="n"
+    if [ "$AUTO_YES" -eq 1 ]; then
+        install_choice="y"
+    else
+        read -p "$(echo -e ${BBLUE}'Install missing tools? [y/N]: '${RESET})" install_choice
+    fi
     
     if [[ "$install_choice" =~ ^[Yy]$ ]]; then
         for tool in "${TOOLS_MISSING[@]}"; do
@@ -325,7 +452,7 @@ phase_subdomains() {
     # Amass (passive)
     if check_tool amass; then
         log_substep "Running amass (passive mode)..."
-        timeout 300 amass enum -passive -d "$TARGET" -o "${OUTPUT_DIR}/subdomains/amass.txt" 2>/dev/null &
+        timeout_cmd 300 amass enum -passive -d "$TARGET" -o "${OUTPUT_DIR}/subdomains/amass.txt" 2>/dev/null &
         local pid2=$!
         spinner $pid2 "amass passive enumeration..."
         wait $pid2 2>/dev/null
@@ -443,6 +570,15 @@ phase_directories() {
     fi
     if [ ! -f "$wordlist" ]; then
         wordlist="/usr/share/seclists/Discovery/Web-Content/common.txt"
+    fi
+    if [ ! -f "$wordlist" ]; then
+        wordlist="/usr/local/share/seclists/Discovery/Web-Content/common.txt"
+    fi
+    if [ ! -f "$wordlist" ]; then
+        wordlist="/opt/homebrew/share/seclists/Discovery/Web-Content/common.txt"
+    fi
+    if [ ! -f "$wordlist" ]; then
+        wordlist="/opt/local/share/seclists/Discovery/Web-Content/common.txt"
     fi
     if [ ! -f "$wordlist" ]; then
         log_warning "No wordlist found. Creating a small default one..."
@@ -660,7 +796,7 @@ phase_vulnerabilities() {
         local xss_targets="${OUTPUT_DIR}/wayback/sensitive_urls.txt"
         if [ -s "$xss_targets" ]; then
             log_substep "Running dalfox XSS scan on sensitive endpoints..."
-            timeout 900 dalfox file "$xss_targets" --silence --no-color \
+            timeout_cmd 900 dalfox file "$xss_targets" --silence --no-color \
                 -o "${vuln_dir}/dalfox_xss.txt" 2>/dev/null
             if [ -s "${vuln_dir}/dalfox_xss.txt" ]; then
                 log_success "dalfox found XSS findings"
@@ -675,7 +811,7 @@ phase_vulnerabilities() {
     # -- crlfuzz (CRLF injection scanner) --
     if check_tool crlfuzz; then
         log_substep "Running crlfuzz CRLF injection scan..."
-        timeout 600 crlfuzz -l "$live_file" -s -o "${vuln_dir}/crlfuzz_findings.txt" 2>/dev/null
+        timeout_cmd 600 crlfuzz -l "$live_file" -s -o "${vuln_dir}/crlfuzz_findings.txt" 2>/dev/null
         if [ -s "${vuln_dir}/crlfuzz_findings.txt" ]; then
             log_success "crlfuzz found CRLF injection points"
         else
@@ -934,6 +1070,86 @@ STATS
     log_success "Report saved to: ${BWHITE}${report}${RESET}"
 }
 
+# ----------------------------- JSON SUMMARY (AGENT-FRIENDLY) ----------------------------- #
+
+generate_json_summary() {
+    local summary="${OUTPUT_DIR}/SUMMARY.json"
+    
+    local subdomain_count=$(count_lines "${OUTPUT_DIR}/subdomains/subdomains.txt")
+    local live_count=$(count_lines "${OUTPUT_DIR}/live_hosts.txt")
+    local port_count=$(count_lines "${OUTPUT_DIR}/ports/open_ports.txt")
+    local dir_count=$(count_lines "${OUTPUT_DIR}/directories/all_directories.txt")
+    local url_count=$(count_lines "${OUTPUT_DIR}/wayback/all_urls.txt")
+    local sensitive_count=$(count_lines "${OUTPUT_DIR}/wayback/sensitive_urls.txt")
+    local email_count=$(count_lines "${OUTPUT_DIR}/info/emails.txt")
+    local ip_count=$(count_lines "${OUTPUT_DIR}/info/ip_addresses.txt")
+    local jsonl="${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl"
+    local findings_txt="${OUTPUT_DIR}/vulnerabilities/vulnerabilities.txt"
+    
+    local critical=0 high=0 medium=0 low=0 info=0
+    if command -v jq &> /dev/null && [ -s "$jsonl" ]; then
+        critical=$(jq -r -c 'select(.info.severity == "critical")' "$jsonl" 2>/dev/null | wc -l)
+        high=$(jq -r -c 'select(.info.severity == "high")' "$jsonl" 2>/dev/null | wc -l)
+        medium=$(jq -r -c 'select(.info.severity == "medium")' "$jsonl" 2>/dev/null | wc -l)
+        low=$(jq -r -c 'select(.info.severity == "low")' "$jsonl" 2>/dev/null | wc -l)
+        info=$(jq -r -c 'select(.info.severity == "info")' "$jsonl" 2>/dev/null | wc -l)
+    fi
+    
+    if command -v jq &> /dev/null; then
+        # findings array built by jq (guaranteed-valid JSON escaping)
+        local findings_json="[]"
+        if [ -s "$findings_txt" ]; then
+            findings_json=$(jq -Rn '[inputs]' "$findings_txt" 2>/dev/null)
+        fi
+        jq -n \
+            --arg tool "sherme" \
+            --arg version "$VERSION" \
+            --arg target "$TARGET" \
+            --arg output_dir "$OUTPUT_DIR" \
+            --arg scan_time "$(date)" \
+            --arg report "${OUTPUT_DIR}/REPORT.md" \
+            --argjson stats "{\"subdomains\":${subdomain_count},\"live_hosts\":${live_count},\"open_ports\":${port_count},\"directories\":${dir_count},\"historical_urls\":${url_count},\"sensitive_urls\":${sensitive_count},\"emails\":${email_count},\"ip_addresses\":${ip_count}}" \
+            --argjson severity "{\"critical\":${critical},\"high\":${high},\"medium\":${medium},\"low\":${low},\"info\":${info}}" \
+            --argjson findings "$findings_json" \
+            '{tool:$tool, version:$version, target:$target, output_dir:$output_dir,
+              scan_time:$scan_time, stats:$stats, severity:$severity, findings:$findings, report:$report}' \
+            > "$summary" 2>/dev/null
+    else
+        # Minimal fallback (jq not present) - numbers only, empty findings
+        cat > "$summary" << EOF
+{
+  "tool": "sherme",
+  "version": "${VERSION}",
+  "target": "${TARGET}",
+  "output_dir": "${OUTPUT_DIR}",
+  "scan_time": "$(date)",
+  "stats": {
+    "subdomains": ${subdomain_count},
+    "live_hosts": ${live_count},
+    "open_ports": ${port_count},
+    "directories": ${dir_count},
+    "historical_urls": ${url_count},
+    "sensitive_urls": ${sensitive_count},
+    "emails": ${email_count},
+    "ip_addresses": ${ip_count}
+  },
+  "severity": {
+    "critical": ${critical},
+    "high": ${high},
+    "medium": ${medium},
+    "low": ${low},
+    "info": ${info}
+  },
+  "findings": []
+}
+EOF
+    fi
+    
+    log_success "JSON summary saved to: ${BWHITE}${summary}${RESET}"
+    echo ""
+    jq '.' "$summary" 2>/dev/null || cat "$summary"
+}
+
 # ----------------------------- MAIN EXECUTION ----------------------------- #
 
 usage() {
@@ -945,6 +1161,9 @@ usage() {
     echo -e "  ${CYAN}-o, --output${RESET}       Output directory (default: sherme_<domain>_<timestamp>)"
     echo -e "  ${CYAN}-t, --threads${RESET}      Number of threads (default: 50)"
     echo -e "  ${CYAN}-T, --timeout${RESET}      Connection timeout (default: 10s)"
+    echo -e "  ${CYAN}-p, --phase${RESET}        Run one phase: all|recon|vuln|subdomains|live|dirs|urls|tech|ports|info"
+    echo -e "  ${CYAN}-y, --yes${RESET}          Auto-install missing tools without prompting"
+    echo -e "  ${CYAN}--json${RESET}             Emit machine-readable SUMMARY.json for agents"
     echo -e "  ${CYAN}-q, --quiet${RESET}        Quiet mode - minimal output"
     echo -e "  ${CYAN}-v, --verbose${RESET}      Verbose output"
     echo -e "  ${CYAN}-h, --help${RESET}         Show this help message"
@@ -952,7 +1171,8 @@ usage() {
     echo -e "${BWHITE}Examples:${RESET}"
     echo -e "  ${GREEN}$0 -d example.com${RESET}"
     echo -e "  ${GREEN}$0 -d example.com -t 100 -o my_scan${RESET}"
-    echo -e "  ${GREEN}$0 --domain example.com --quiet${RESET}"
+    echo -e "  ${GREEN}$0 -d example.com --phase vuln --json${RESET}"
+    echo -e "  ${GREEN}$0 -d example.com -y --json${RESET}"
     echo ""
     echo -e "${BYELLOW}Recommended Tools:${RESET}"
     echo -e "  ${WHITE}subfinder, httpx, feroxbuster, gobuster, ffuf, amass, gau,${RESET}"
@@ -986,6 +1206,18 @@ parse_args() {
                 TIMEOUT="$2"
                 shift 2
                 ;;
+            -p|--phase)
+                PHASE="$2"
+                shift 2
+                ;;
+            -y|--yes)
+                AUTO_YES=1
+                shift
+                ;;
+            --json)
+                JSON_OUTPUT=1
+                shift
+                ;;
             -q|--quiet)
                 SILENT=1
                 shift
@@ -1005,6 +1237,17 @@ parse_args() {
                 ;;
         esac
     done
+    
+    # Validate the phase selection
+    case $PHASE in
+        all|recon|vuln|subdomains|live|dirs|directories|urls|wayback|tech|technology|ports|info)
+            ;;
+        *)
+            log_error "Unknown phase: $PHASE"
+            usage
+            exit 1
+            ;;
+    esac
     
     # Validate required arguments
     if [ -z "$TARGET" ]; then
@@ -1067,18 +1310,46 @@ main() {
     # Start timing
     local start_time=$(date +%s)
     
-    # Execute recon phases
-    phase_subdomains
-    phase_dns_resolve
-    phase_directories
-    phase_wayback
-    phase_technology
-    phase_ports
-    phase_vulnerabilities
-    phase_info_gathering
+    # Execute recon phases (selected via --phase)
+    case $PHASE in
+        all)
+            phase_subdomains
+            phase_dns_resolve
+            phase_directories
+            phase_wayback
+            phase_technology
+            phase_ports
+            phase_vulnerabilities
+            phase_info_gathering
+            ;;
+        recon)
+            phase_subdomains
+            phase_dns_resolve
+            phase_directories
+            phase_wayback
+            phase_info_gathering
+            ;;
+        vuln)
+            phase_ports
+            phase_dns_resolve
+            phase_vulnerabilities
+            ;;
+        subdomains) phase_subdomains ;;
+        live) phase_dns_resolve ;;
+        dirs|directories) phase_directories ;;
+        urls|wayback) phase_wayback ;;
+        tech|technology) phase_technology ;;
+        ports) phase_ports ;;
+        info) phase_info_gathering ;;
+    esac
     
     # Generate report
     generate_report
+    
+    # Emit machine-readable JSON summary for agents
+    if [ "$JSON_OUTPUT" -eq 1 ]; then
+        generate_json_summary
+    fi
     
     # Calculate duration
     local end_time=$(date +%s)
