@@ -2,10 +2,10 @@
 
 # 🕵️ Sherme
 
-### Fully Automated Reconnaissance Framework
+### Fully Automated Reconnaissance & Vulnerability Scanner
 
 [![made-with-bash](https://img.shields.io/badge/Made%20with-Bash-1f425f.svg)](https://www.gnu.org/software/bash/)
-[![Version](https://img.shields.io/badge/version-1.0-purple.svg)](https://github.com/sherme)
+[![Version](https://img.shields.io/badge/version-2.0-purple.svg)](https://github.com/sherme)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
@@ -14,15 +14,16 @@
 <div align="center">
 
 ```
-  ███████╗██████╗ ███████╗██████╗ ██╗   ██╗███╗   ███╗
-  ██╔════╝██╔══██╗██╔════╝██╔══██╗██║   ██║████╗ ████║
-  ███████╗██████╔╝█████╗  ██████╔╝██║   ██║██╔████╔██║
-  ╚════██║██╔═══╝ ██╔══╝  ██╔══██╗██║   ██║██║╚██╔╝██║
-  ███████║██║     ███████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║
-  ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝
+  ███████╗  ██╗  ██╗  ███████╗  ██████╗   ███╗   ███╗  ███████╗
+  ██╔════╝  ██║  ██║  ██╔════╝  ██╔══██╗  ████╗ ████║  ██╔════╝
+  ███████╗  ███████║  █████╗    ██████╔╝  ██╔████╔██║  █████╗
+  ╚════██║  ██╔══██║  ██╔══╝    ██╔══██╗  ██║╚██╔╝██║  ██╔══╝
+  ███████║  ██║  ██║  ███████╗  ██║  ██║  ██║ ╚═╝ ██║  ███████╗
+  ╚══════╝  ╚═╝  ╚═╝  ╚══════╝  ╚═╝  ╚═╝  ╚═╝     ╚═╝  ╚══════╝
 ```
 
 **Just give it a website, and it does ALL the work.**
+**Recon ⟶ Port scan ⟶ Vulnerability scan ⟶ Auto report.**
 
 </div>
 
@@ -33,12 +34,14 @@
 | Feature | Description |
 |---------|-------------|
 | 🌐 **Subdomain Enumeration** | Discovers subdomains using multiple tools |
-| 🔍 **Live Host Detection** | Identifies which targets are actually alive |
+| 🔍 **Live Host Detection** | Probes hosts with httpx (fast & automated) |
+| 🚪 **Port Scanning** | Finds open ports with naabu |
 | 📁 **Directory Brute Force** | Scans for hidden directories and files |
 | 🕰️ **Historical URLs** | Fetches old URLs from wayback machine & archives |
 | 🖥️ **Tech Fingerprinting** | Detects technologies, CMS, and frameworks |
-| 🕸️ **Vulnerability Scanning** | Checks for known web vulnerabilities |
-| 📊 **Auto Report** | Generates a complete Markdown report |
+| 🕸️ **Vulnerability Scanning** | nuclei + dalfox (XSS) + crlfuzz (CRLF) |
+| 📊 **Auto Report** | Generates a Markdown report that **flags found vulns by severity** |
+| 🤖 **Fully Automated** | One command runs everything and reports findings |
 | 🎨 **Beautiful Output** | Colorful, animated, and easy to read |
 
 ## 🛠️ Tools Integrated
@@ -48,11 +51,19 @@
 | **Subfinder** | Passive subdomain enumeration |
 | **Amass** | Network mapping and subdomain discovery |
 | **Assetfinder** | Subdomain discovery from variety of sources |
+| **httpx** | Fast live-host probing + tech detection |
+| **naabu** | Fast port scanning |
 | **Gobuster** | Directory & DNS brute forcing |
 | **Feroxbuster** | Fast recursive directory scan |
 | **Ffuf** | Flexible web fuzzing |
 | **Waybackurls** | Historical URL discovery |
 | **GAU** | Collect all known URLs |
+| **Katana** | Automated web crawling |
+| **Nuclei** | Template-based vulnerability scanner |
+| **dalfox** | XSS vulnerability scanner |
+| **crlfuzz** | CRLF injection scanner |
+| **sqlmap** | SQL injection automation |
+| **dnsx** | Fast DNS toolkit & resolution |
 | **WhatWeb** | Technology fingerprinting |
 | **Nikto** | Web server vulnerability scanner |
 | **DNSRecon** | DNS enumeration and zone transfer |
@@ -72,7 +83,7 @@ git clone https://github.com/sherme/sherme.git && cd sherme && chmod +x install.
 
 **Kali Linux / Parrot OS:**
 ```bash
-sudo apt update && sudo apt install -y gobuster feroxbuster dnsrecon dnsenum nikto whatweb theharvester
+sudo apt update && sudo apt install -y gobuster feroxbuster dnsrecon dnsenum nikto whatweb theharvester sqlmap jq
 ```
 
 **Build Go tools:**
@@ -84,6 +95,13 @@ go install -v github.com/tomnomnom/assetfinder@latest
 go install -v github.com/tomnomnom/waybackurls@latest
 go install -v github.com/lc/gau/v2/cmd/gau@latest
 go install -v github.com/ffuf/ffuf/v2@latest
+go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+go install -v github.com/hahwul/dalfox/v2@latest
+go install -v github.com/dwisiswant0/crlfuzz/cmd/crlfuzz@latest
 export PATH=$PATH:$(go env GOPATH)/bin
 ```
 
@@ -122,13 +140,15 @@ chmod +x sherme.sh
 
 ```
 sherme_example.com_20260912_123456/
-├── REPORT.md                      # Complete summary report
+├── REPORT.md                      # Complete summary report (flags vulns by severity)
 ├── live_hosts.txt                 # Live host URLs
 ├── subdomains/
 │   ├── subdomains.txt             # All unique subdomains
 │   ├── subfinder.txt              # Subfinder results
 │   ├── amass.txt                  # Amass results
 │   └── assetfinder.txt            # Assetfinder results
+├── ports/
+│   └── open_ports.txt             # Open ports from naabu
 ├── directories/
 │   ├── all_directories.txt        # All discovered paths
 │   ├── ferox_*.txt                # Feroxbuster results
@@ -137,6 +157,12 @@ sherme_example.com_20260912_123456/
 │   ├── all_urls.txt               # All historical URLs
 │   ├── interesting_urls.txt       # Potentially interesting URLs
 │   └── sensitive_urls.txt         # Sensitive files & directories
+├── vulnerabilities/
+│   ├── nuclei.jsonl               # Raw nuclei results (JSON)
+│   ├── vulnerabilities.txt        # Parsed findings (severity + name + URL)
+│   ├── vuln_summary.txt           # Severity breakdown
+│   ├── dalfox_xss.txt             # XSS findings
+│   └── crlfuzz_findings.txt       # CRLF injection findings
 ├── technology/
 │   ├── whatweb.txt                # Technology fingerprints
 │   └── nikto_*.txt                # Nikto scan results
@@ -156,18 +182,18 @@ sherme_example.com_20260912_123456/
          ┌──────────────────────────────────────────────┤
          ▼                                              ▼
   ┌─────────────┐                             ┌─────────────────┐
-  │ URL Harvest │                             │  Dir BruteForce │
+  │ URL Harvest │                             │  Port Scan      │
   └─────────────┘                             └─────────────────┘
          │                                              │
          ▼                                              ▼
   ┌─────────────┐                             ┌─────────────────┐
-  │  Tech Recon │ ◀────────────────────────── │  Vuln Scanning  │
-  └─────────────┘                             └─────────────────┘
-         │
-         ▼
-  ┌─────────────┐
-  │   REPORT    │
-  └─────────────┘
+  │  Tech Recon │ ──────────────────────────▶ │  Vuln Scanning  │
+  └─────────────┘    (nuclei/dalfox/crlfuzz) └─────────────────┘
+         │                                              │
+         ▼                                              ▼
+  ┌─────────────┐                             ┌─────────────────┐
+  │  REPORT     │ ◀────────────────────────── │  Fix Report     │
+  └─────────────┘      (severity flags)       └─────────────────┘
 ```
 
 ## ⚠️ Disclaimer

@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# ============================================sherme============================================
-#  ███████╗██████╗ ███████╗██████╗ ██╗   ██╗███╗   ███╗
-#  ██╔════╝██╔══██╗██╔════╝██╔══██╗██║   ██║████╗ ████║
-#  ███████╗██████╔╝█████╗  ██████╔╝██║   ██║██╔████╔██║
-#  ╚════██║██╔═══╝ ██╔══╝  ██╔══██╗██║   ██║██║╚██╔╝██║
-#  ███████║██║     ███████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║
-#  ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝
+# ============================================SHERME===========================================
+#  ███████╗  ██╗  ██╗  ███████╗  ██████╗   ███╗   ███╗  ███████╗
+#  ██╔════╝  ██║  ██║  ██╔════╝  ██╔══██╗  ████╗ ████║  ██╔════╝
+#  ███████╗  ███████║  █████╗    ██████╔╝  ██╔████╔██║  █████╗
+#  ╚════██║  ██╔══██║  ██╔══╝    ██╔══██╗  ██║╚██╔╝██║  ██╔══╝
+#  ███████║  ██║  ██║  ███████╗  ██║  ██║  ██║ ╚═╝ ██║  ███████╗
+#  ╚══════╝  ╚═╝  ╚═╝  ╚══════╝  ╚═╝  ╚═╝  ╚═╝     ╚═╝  ╚══════╝
 #
-#  Sherme - Fully Automated Reconnaissance Framework
+#  SHERME - Fully Automated Reconnaissance & Vulnerability Scanner
 #  Author: dwoz
-#  Version: 1.0
-#  Description: All-in-one automated recon tool for penetration testing
+#  Version: 2.0
+#  Description: All-in-one automated recon, web testing & vulnerability scanner
 # =============================================================================
 
 # ----------------------------- COLORS & FORMATTING ---------------------------- #
@@ -38,7 +38,7 @@ UNDERLINE='\033[4m'
 BLINK='\033[5m'
 
 # ----------------------------- GLOBAL VARIABLES ----------------------------- #
-VERSION="1.0"
+VERSION="2.0"
 TARGET=""
 OUTPUT_DIR=""
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -49,22 +49,23 @@ TIMEOUT=10
 USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 VERBOSE=0
 SILENT=0
+TOOLS_LIST="subfinder gobuster feroxbuster amass assetfinder waybackurls gau ffuf nikto whatweb dnsrecon theharvester curl wpscan dnsenum sublist3r nuclei httpx naabu katana dalfox crlfuzz sqlmap dnsx jq"
 
 # ----------------------------- BANNER ----------------------------- #
 print_banner() {
     echo -e "${BMAGENTA}"
     cat << 'EOF'
 
-  ███████╗██████╗ ███████╗██████╗ ██╗   ██╗███╗   ███╗
-  ██╔════╝██╔══██╗██╔════╝██╔══██╗██║   ██║████╗ ████║
-  ███████╗██████╔╝█████╗  ██████╔╝██║   ██║██╔████╔██║
-  ╚════██║██╔═══╝ ██╔══╝  ██╔══██╗██║   ██║██║╚██╔╝██║
-  ███████║██║     ███████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║
-  ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝
+  ███████╗  ██╗  ██╗  ███████╗  ██████╗   ███╗   ███╗  ███████╗
+  ██╔════╝  ██║  ██║  ██╔════╝  ██╔══██╗  ████╗ ████║  ██╔════╝
+  ███████╗  ███████║  █████╗    ██████╔╝  ██╔████╔██║  █████╗
+  ╚════██║  ██╔══██║  ██╔══╝    ██╔══██╗  ██║╚██╔╝██║  ██╔══╝
+  ███████║  ██║  ██║  ███████╗  ██║  ██║  ██║ ╚═╝ ██║  ███████╗
+  ╚══════╝  ╚═╝  ╚═╝  ╚══════╝  ╚═╝  ╚═╝  ╚═╝     ╚═╝  ╚══════╝
 
 EOF
     echo -e "  ${BCYAN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "  ${BCYAN}║${RESET}  ${BWHITE}Fully Automated Reconnaissance Framework${RESET}                    ${BCYAN}║${RESET}"
+    echo -e "  ${BCYAN}║${RESET}  ${BWHITE}Automated Recon & Vulnerability Scanner${RESET}                ${BCYAN}║${RESET}"
     echo -e "  ${BCYAN}║${RESET}  ${YELLOW}Version:${RESET} ${BWHITE}${VERSION}${RESET}  ${YELLOW}Author:${RESET} ${BWHITE}dwoz${RESET}                         ${BCYAN}║${RESET}"
     echo -e "  ${BCYAN}║${RESET}  ${BMAGENTA}https://github.com/dwoz/sherme${RESET}                           ${BCYAN}║${RESET}"
     echo -e "  ${BCYAN}╚══════════════════════════════════════════════════════════════╝${RESET}"
@@ -124,6 +125,14 @@ check_tool() {
     else
         TOOLS_MISSING+=("$1")
         return 1
+    fi
+}
+
+count_lines() {
+    if [ -f "$1" ]; then
+        wc -l < "$1" 2>/dev/null | tr -d ' '
+    else
+        echo 0
     fi
 }
 
@@ -251,7 +260,32 @@ auto_install_missing() {
                 sublist3r)
                     install_tool "sublist3r" "pip"
                     ;;
+                nuclei)
+                    install_tool "github.com/projectdiscovery/nuclei/v3/cmd/nuclei" "go"
+                    ;;
                 httpx)
+                    install_tool "github.com/projectdiscovery/httpx/cmd/httpx" "go"
+                    ;;
+                naabu)
+                    install_tool "github.com/projectdiscovery/naabu/v2/cmd/naabu" "go"
+                    ;;
+                katana)
+                    install_tool "github.com/projectdiscovery/katana/cmd/katana" "go"
+                    ;;
+                dnsx)
+                    install_tool "github.com/projectdiscovery/dnsx/cmd/dnsx" "go"
+                    ;;
+                dalfox)
+                    install_tool "github.com/hahwul/dalfox/v2" "go"
+                    ;;
+                crlfuzz)
+                    install_tool "github.com/dwisiswant0/crlfuzz/cmd/crlfuzz" "go"
+                    ;;
+                sqlmap)
+                    install_tool "sqlmap" "pip"
+                    ;;
+                jq)
+                    install_tool "jq" "apt"
                     ;;
                 nmap)
                     ;;
@@ -261,7 +295,7 @@ auto_install_missing() {
         # Recheck tools
         TOOLS_FOUND=()
         TOOLS_MISSING=()
-        for tool in subfinder gobuster feroxbuster amass assetfinder waybackurls gau ffuf nikto whatweb dnsrecon theharvester curl dnsenum sublist3r; do
+        for tool in $TOOLS_LIST; do
             check_tool "$tool"
         done
         print_tool_status
@@ -351,22 +385,43 @@ phase_dns_resolve() {
     
     log_substep "Checking for live hosts..."
     
-    # Use curl for quick live check
-    while IFS= read -r subdomain; do
-        (
-            if curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "http://${subdomain}" 2>/dev/null | grep -qE '^[2-3]'; then
-                echo "http://${subdomain}" >> "${OUTPUT_DIR}/live_http.txt"
-            fi
-            if curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "https://${subdomain}" 2>/dev/null | grep -qE '^[2-3]'; then
-                echo "https://${subdomain}" >> "${OUTPUT_DIR}/live_https.txt"
-            fi
-        ) &
-    done < "$subdomains_file"
-    wait
+    # Use httpx (fast, from ProjectDiscovery) when available
+    if check_tool httpx; then
+        httpx -l "$subdomains_file" -threads $THREADS -timeout $TIMEOUT -silent \
+            -status-code -title -tech-detect -follow-redirects \
+            -o "${OUTPUT_DIR}/live_raw.txt" 2>/dev/null
+        
+        # Extract http(s)://host:port as urls (dedup)
+        if [ -s "${OUTPUT_DIR}/live_raw.txt" ]; then
+            grep -oE 'https?://[^ ]+' "${OUTPUT_DIR}/live_raw.txt" 2>/dev/null | sort -u > "$live_file"
+        fi
+        log_success "httpx probation complete"
+    fi
     
-    # Merge live hosts
-    cat "${OUTPUT_DIR}/live_http.txt" "${OUTPUT_DIR}/live_https.txt" 2>/dev/null | sort -u > "$live_file"
-    rm -f "${OUTPUT_DIR}/live_http.txt" "${OUTPUT_DIR}/live_https.txt"
+    # Fallback: curl-based probing
+    if [ ! -s "$live_file" ]; then
+        while IFS= read -r subdomain; do
+            (
+                if curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "http://${subdomain}" 2>/dev/null | grep -qE '^[2-3]'; then
+                    echo "http://${subdomain}" >> "${OUTPUT_DIR}/live_http.txt"
+                fi
+                if curl -s --connect-timeout 5 --max-time 10 -o /dev/null -w "%{http_code}" "https://${subdomain}" 2>/dev/null | grep -qE '^[2-3]'; then
+                    echo "https://${subdomain}" >> "${OUTPUT_DIR}/live_https.txt"
+                fi
+            ) &
+        done < "$subdomains_file"
+        wait
+
+        # Merge live hosts
+        cat "${OUTPUT_DIR}/live_http.txt" "${OUTPUT_DIR}/live_https.txt" 2>/dev/null | sort -u > "$live_file"
+        rm -f "${OUTPUT_DIR}/live_http.txt" "${OUTPUT_DIR}/live_https.txt"
+    fi
+    
+    # Always ensure base domain is included when nothing else resolves
+    if [ ! -s "$live_file" ]; then
+        echo "https://${TARGET}" > "$live_file"
+        echo "http://${TARGET}" >> "$live_file"
+    fi
     
     local count=$(wc -l < "$live_file" 2>/dev/null || echo 0)
     log_success "Found ${BWHITE}${count}${RESET} live hosts"
@@ -544,9 +599,143 @@ phase_technology() {
     fi
 }
 
-# Phase 6: Information Gathering
+# Phase 7: Port Scanning
+phase_ports() {
+    log_step "PHASE 7: Port Scanning (naabu)"
+    
+    local subdomains_file="${OUTPUT_DIR}/subdomains/subdomains.txt"
+    mkdir -p "${OUTPUT_DIR}/ports"
+    
+    if check_tool naabu; then
+        log_substep "Scanning top 1000 ports across subdomains..."
+        naabu -list "$subdomains_file" -top-ports 1000 -silent \
+            -o "${OUTPUT_DIR}/ports/open_ports.txt" 2>/dev/null &
+        local pid=$!
+        spinner $pid "naabu scanning ports..."
+        wait $pid 2>/dev/null
+        
+        local count=$(count_lines "${OUTPUT_DIR}/ports/open_ports.txt")
+        log_success "Discovered ${BWHITE}${count}${RESET} open port(s)"
+        cat "${OUTPUT_DIR}/ports/open_ports.txt" 2>/dev/null | head -20
+    else
+        log_warning "naabu not installed - skipping port scan"
+    fi
+}
+
+# Phase 8: Automated Vulnerability Scanning
+phase_vulnerabilities() {
+    log_step "PHASE 8: Automated Vulnerability Scanning"
+    
+    local live_file="${OUTPUT_DIR}/live_hosts.txt"
+    local vuln_dir="${OUTPUT_DIR}/vulnerabilities"
+    mkdir -p "$vuln_dir"
+    
+    if [ ! -s "$live_file" ]; then
+        log_warning "No live hosts to scan for vulnerabilities"
+        return
+    fi
+    
+    # -- Nuclei (main vulnerability scanner) --
+    if check_tool nuclei; then
+        log_substep "Updating nuclei templates (automated)..."
+        nuclei -update-templates -silent 2>/dev/null &
+        wait $! 2>/dev/null
+        log_success "Nuclei templates up to date"
+        
+        log_substep "Running nuclei vulnerability scan on live hosts..."
+        nuclei -l "$live_file" -c $THREADS -timeout $TIMEOUT -silent \
+            -jsonl -omit-raw -o "${vuln_dir}/nuclei.jsonl" 2>/dev/null &
+        local pid=$!
+        spinner $pid "nuclei scanning for vulnerabilities..."
+        wait $pid 2>/dev/null
+        log_success "Nuclei scan complete"
+        
+        # Parse nuclei JSON-line results into a readable text report
+        parse_nuclei_results
+        generate_vuln_summary
+    fi
+    
+    # -- dalfox (XSS scanner) --
+    if check_tool dalfox; then
+        local xss_targets="${OUTPUT_DIR}/wayback/sensitive_urls.txt"
+        if [ -s "$xss_targets" ]; then
+            log_substep "Running dalfox XSS scan on sensitive endpoints..."
+            timeout 900 dalfox file "$xss_targets" --silence --no-color \
+                -o "${vuln_dir}/dalfox_xss.txt" 2>/dev/null
+            if [ -s "${vuln_dir}/dalfox_xss.txt" ]; then
+                log_success "dalfox found XSS findings"
+            else
+                log_success "dalfox scan complete - no XSS findings"
+            fi
+        else
+            log_warning "No URL endpoints found - skipping dalfox XSS scan"
+        fi
+    fi
+    
+    # -- crlfuzz (CRLF injection scanner) --
+    if check_tool crlfuzz; then
+        log_substep "Running crlfuzz CRLF injection scan..."
+        timeout 600 crlfuzz -l "$live_file" -s -o "${vuln_dir}/crlfuzz_findings.txt" 2>/dev/null
+        if [ -s "${vuln_dir}/crlfuzz_findings.txt" ]; then
+            log_success "crlfuzz found CRLF injection points"
+        else
+            log_success "crlfuzz scan complete - no CRLF findings"
+        fi
+    fi
+}
+
+parse_nuclei_results() {
+    local vuln_dir="${OUTPUT_DIR}/vulnerabilities"
+    local jsonl="${vuln_dir}/nuclei.jsonl"
+    local readable="${vuln_dir}/vulnerabilities.txt"
+    
+    if [ ! -s "$jsonl" ]; then
+        log_warning "Nuclei produced no results"
+        echo "No vulnerabilities detected by nuclei." > "$readable"
+        return
+    fi
+    
+    # Use jq when available for clean parsing
+    if command -v jq &> /dev/null; then
+        jq -r -c 'select(.info.severity != "info") |
+            "[" + .info.severity + "] " + .info["name"] + " @ " + (."matched-at" // .matched_at) +
+            "  (template: " + (."template-id" // .template_id) + ")"' "$jsonl" 2>/dev/null | sort -u > "$readable"
+    else
+        # Fallback: rough grep-based parsing
+        grep -o '"[a-z-]*":"[^"]*"' "$jsonl" 2>/dev/null | sort -u > "$readable"
+    fi
+    
+    local count=$(count_lines "$readable")
+    log_success "Parsed ${BWHITE}${count}${RESET} unique vulnerability finding(s)"
+    cat "$readable" 2>/dev/null | head -15
+}
+
+generate_vuln_summary() {
+    local vuln_dir="${OUTPUT_DIR}/vulnerabilities"
+    local jsonl="${vuln_dir}/nuclei.jsonl"
+    local summary="${vuln_dir}/vuln_summary.txt"
+    
+    echo "Vulnerability Summary for ${TARGET}" > "$summary"
+    echo "Generated: $(date)" >> "$summary"
+    echo "-----------------------------------" >> "$summary"
+    
+    if command -v jq &> /dev/null && [ -s "$jsonl" ]; then
+        for sev in critical high medium low info; do
+            local n
+            n=$(jq -r -c --arg s "$sev" 'select(.info.severity == $s)' "$jsonl" 2>/dev/null | wc -l)
+            printf "%-10s : %s\n" "$sev" "$n" | tee -a "$summary"
+        done
+    else
+        echo "jq not available - unable to build severity summary" >> "$summary"
+    fi
+    
+    log_success "Vulnerability summary:"
+    cat "$summary"
+}
+
+# Phase 9: Information Gathering
 phase_info_gathering() {
-    log_step "PHASE 6: Additional Information Gathering"
+    log_step "PHASE 9: Additional Information Gathering"
     
     mkdir -p "${OUTPUT_DIR}/info"
     
@@ -609,26 +798,60 @@ generate_report() {
 HEADER
     
     # Count results
-    local subdomain_count=$(wc -l < "${OUTPUT_DIR}/subdomains/subdomains.txt" 2>/dev/null || echo 0)
-    local live_count=$(wc -l < "${OUTPUT_DIR}/live_hosts.txt" 2>/dev/null || echo 0)
-    local dir_count=$(wc -l < "${OUTPUT_DIR}/directories/all_directories.txt" 2>/dev/null || echo 0)
-    local url_count=$(wc -l < "${OUTPUT_DIR}/wayback/all_urls.txt" 2>/dev/null || echo 0)
-    local interesting_count=$(wc -l < "${OUTPUT_DIR}/wayback/interesting_urls.txt" 2>/dev/null || echo 0)
-    local sensitive_count=$(wc -l < "${OUTPUT_DIR}/wayback/sensitive_urls.txt" 2>/dev/null || echo 0)
-    local email_count=$(wc -l < "${OUTPUT_DIR}/info/emails.txt" 2>/dev/null || echo 0)
-    local ip_count=$(wc -l < "${OUTPUT_DIR}/info/ip_addresses.txt" 2>/dev/null || echo 0)
+    local subdomain_count=$(count_lines "${OUTPUT_DIR}/subdomains/subdomains.txt")
+    local live_count=$(count_lines "${OUTPUT_DIR}/live_hosts.txt")
+    local dir_count=$(count_lines "${OUTPUT_DIR}/directories/all_directories.txt")
+    local url_count=$(count_lines "${OUTPUT_DIR}/wayback/all_urls.txt")
+    local interesting_count=$(count_lines "${OUTPUT_DIR}/wayback/interesting_urls.txt")
+    local sensitive_count=$(count_lines "${OUTPUT_DIR}/wayback/sensitive_urls.txt")
+    local email_count=$(count_lines "${OUTPUT_DIR}/info/emails.txt")
+    local ip_count=$(count_lines "${OUTPUT_DIR}/info/ip_addresses.txt")
+    local port_count=$(count_lines "${OUTPUT_DIR}/ports/open_ports.txt")
+    vuln_count=$(count_lines "${OUTPUT_DIR}/vulnerabilities/vulnerabilities.txt")
+    xss_count=$(count_lines "${OUTPUT_DIR}/vulnerabilities/dalfox_xss.txt")
+    crlf_count=$(count_lines "${OUTPUT_DIR}/vulnerabilities/crlfuzz_findings.txt")
+
+    # Severity totals (nuclei)
+    local critical=0 high=0 medium=0 low=0
+    if command -v jq &> /dev/null && [ -s "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" ]; then
+        critical=$(jq -r -c 'select(.info.severity == "critical")' "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" 2>/dev/null | wc -l)
+        high=$(jq -r -c 'select(.info.severity == "high")' "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" 2>/dev/null | wc -l)
+        medium=$(jq -r -c 'select(.info.severity == "medium")' "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" 2>/dev/null | wc -l)
+        low=$(jq -r -c 'select(.info.severity == "low")' "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" 2>/dev/null | wc -l)
+    fi
+
+    # Overall vuln status
+    local total_vulns=$((vuln_count + xss_count + crlf_count))
+    if [ "$total_vulns" -gt 0 ] || [ "$critical" -gt 0 ] || [ "$high" -gt 0 ]; then
+        VULN_STATUS="⚠️ VULNERABILITIES DETECTED"
+    else
+        VULN_STATUS="✅ No critical/high vulnerabilities found"
+    fi
     
     cat >> "$report" << STATS
 | Category | Count |
 |----------|-------|
+| ${VULN_STATUS} | — |
 | Subdomains | ${subdomain_count} |
 | Live Hosts | ${live_count} |
+| Open Ports | ${port_count} |
 | Directory Paths | ${dir_count} |
 | Historical URLs | ${url_count} |
 | Interesting URLs | ${interesting_count} |
 | Sensitive URLs | ${sensitive_count} |
 | Emails | ${email_count} |
 | IP Addresses | ${ip_count} |
+| Nuclei Findings (non-info) | ${vuln_count} |
+| XSS Findings (dalfox) | ${xss_count} |
+| CRLF Findings (crlfuzz) | ${crlf_count} |
+
+### Vulnerability Severity Breakdown
+| Severity | Count |
+|----------|-------|
+| 🔴 Critical | ${critical} |
+| 🟠 High | ${high} |
+| 🟡 Medium | ${medium} |
+| 🔵 Low | ${low} |
 
 ---
 
@@ -640,6 +863,31 @@ $(cat "${OUTPUT_DIR}/subdomains/subdomains.txt" 2>/dev/null | head -100)
 ## Live Hosts
 \`\`\`
 $(cat "${OUTPUT_DIR}/live_hosts.txt" 2>/dev/null)
+\`\`\`
+
+## Open Ports
+\`\`\`
+$(cat "${OUTPUT_DIR}/ports/open_ports.txt" 2>/dev/null | head -100)
+\`\`\`
+
+## Vulnerabilities Found (Nuclei)
+\`\`\`
+$(cat "${OUTPUT_DIR}/vulnerabilities/vulnerabilities.txt" 2>/dev/null | head -200)
+\`\`\`
+
+## XSS Findings (dalfox)
+\`\`\`
+$(cat "${OUTPUT_DIR}/vulnerabilities/dalfox_xss.txt" 2>/dev/null | head -100)
+\`\`\`
+
+## CRLF Injection Findings (crlfuzz)
+\`\`\`
+$(cat "${OUTPUT_DIR}/vulnerabilities/crlfuzz_findings.txt" 2>/dev/null | head -100)
+\`\`\`
+
+## Raw Nuclei JSONL
+\`\`\`
+$(cat "${OUTPUT_DIR}/vulnerabilities/nuclei.jsonl" 2>/dev/null | head -50)
 \`\`\`
 
 ## Directory Findings
@@ -707,9 +955,15 @@ usage() {
     echo -e "  ${GREEN}$0 --domain example.com --quiet${RESET}"
     echo ""
     echo -e "${BYELLOW}Recommended Tools:${RESET}"
-    echo -e "  ${WHITE}subfinder, feroxbuster, gobuster, ffuf, amass, gau,${RESET}"
-    echo -e "  ${WHITE}waybackurls, assetfinder, nikto, whatweb, dnsrecon,${RESET}"
-    echo -e "  ${WHITE}theharvester, wpscan, curl, dnsenum, sublist3r${RESET}"
+    echo -e "  ${WHITE}subfinder, httpx, feroxbuster, gobuster, ffuf, amass, gau,${RESET}"
+    echo -e "  ${WHITE}waybackurls, assetfinder, naabu, katana, nuclei, dalfox,${RESET}"
+    echo -e "  ${WHITE}crlfuzz, sqlmap, nikto, whatweb, dnsrecon, dnsx,${RESET}"
+    echo -e "  ${WHITE}theharvester, wpscan, curl, dnsenum, sublist3r, jq${RESET}"
+    echo ""
+    echo -e "${BYELLOW}Automation:${RESET}"
+    echo -e "  ${WHITE}Fully automated - runs subdomain enum, port scan, dir brute force,${RESET}"
+    echo -e "  ${WHITE}vuln scanning (nuclei + dalfox + crlfuzz) and generates a report${RESET}"
+    echo -e "  ${WHITE}that flags any vulnerabilities found by severity.${RESET}"
     echo ""
 }
 
@@ -801,7 +1055,7 @@ main() {
     fi
     
     # Check optional tools
-    for tool in subfinder gobuster feroxbuster amass assetfinder waybackurls gau ffuf nikto whatweb dnsrecon theharvester curl wpscan dnsenum sublist3r; do
+    for tool in $TOOLS_LIST; do
         check_tool "$tool"
     done
     
@@ -819,6 +1073,8 @@ main() {
     phase_directories
     phase_wayback
     phase_technology
+    phase_ports
+    phase_vulnerabilities
     phase_info_gathering
     
     # Generate report
@@ -839,10 +1095,12 @@ main() {
     echo -e "${BMAGENTA}║${RESET}  ${BBLUE}Duration:${RESET}  ${BWHITE}${minutes}m ${seconds}s${RESET}                                   ${BMAGENTA}║${RESET}"
     echo -e "${BMAGENTA}║${RESET}  ${BBLUE}Output:${RESET}    ${BWHITE}${OUTPUT_DIR}${RESET}                          ${BMAGENTA}║${RESET}"
     echo -e "${BMAGENTA}║${RESET}  ${BBLUE}Report:${RESET}    ${BWHITE}${OUTPUT_DIR}/REPORT.md${RESET}                   ${BMAGENTA}║${RESET}"
+    echo -e "${BMAGENTA}║${RESET}  ${BBLUE}Vulns:${RESET}     ${BRED}${vuln_count} nuclei / ${xss_count} xss / ${crlf_count} crlf${RESET}              ${BMAGENTA}║${RESET}"
     echo -e "${BMAGENTA}╚══════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
     echo -e "  ${YELLOW}Tip:${RESET} Check ${BWHITE}${OUTPUT_DIR}/REPORT.md${RESET} for the full report"
     echo -e "  ${YELLOW}Tip:${RESET} Sensitive URLs are in ${BWHITE}${OUTPUT_DIR}/wayback/sensitive_urls.txt${RESET}"
+    echo -e "  ${YELLOW}Tip:${RESET} Vulnerabilities are in ${BWHITE}${OUTPUT_DIR}/vulnerabilities/${RESET}"
     echo ""
 }
 

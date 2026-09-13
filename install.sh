@@ -24,16 +24,16 @@ print_banner() {
     echo -e "\033[1;35m"
     cat << 'EOF'
 
-  ███████╗██████╗ ███████╗██████╗ ██╗   ██╗███╗   ███╗
-  ██╔════╝██╔══██╗██╔════╝██╔══██╗██║   ██║████╗ ████║
-  ███████╗██████╔╝█████╗  ██████╔╝██║   ██║██╔████╔██║
-  ╚════██║██╔═══╝ ██╔══╝  ██╔══██╗██║   ██║██║╚██╔╝██║
-  ███████║██║     ███████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║
-  ╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝
+  ███████╗  ██╗  ██╗  ███████╗  ██████╗   ███╗   ███╗  ███████╗
+  ██╔════╝  ██║  ██║  ██╔════╝  ██╔══██╗  ████╗ ████║  ██╔════╝
+  ███████╗  ███████║  █████╗    ██████╔╝  ██╔████╔██║  █████╗
+  ╚════██║  ██╔══██║  ██╔══╝    ██╔══██╗  ██║╚██╔╝██║  ██╔══╝
+  ███████║  ██║  ██║  ███████╗  ██║  ██║  ██║ ╚═╝ ██║  ███████╗
+  ╚══════╝  ╚═╝  ╚═╝  ╚══════╝  ╚═╝  ╚═╝  ╚═╝     ╚═╝  ╚══════╝
 
 EOF
     echo -e "\033[1;36m   ════════════════════════════════════════════════════════════"
-    echo -e "           Dependency Installer v1.0"
+    echo -e "           Dependency Installer v2.0"
     echo -e "   ════════════════════════════════════════════════════════════\033[0m"
     echo ""
 }
@@ -95,8 +95,8 @@ main() {
     
     # System packages
     if [ -f /etc/debian_version ]; then
-        install_apt golang-go git curl wget openssl
-        install_apt gobuster feroxbuster
+        install_apt golang-go git curl wget openssl jq
+        install_apt gobuster feroxbuster sqlmap
         install_apt dnsrecon dnsenum nikto whatweb
         install_apt python3 python3-pip
     fi
@@ -120,6 +120,13 @@ main() {
     check_install waybackurls || install_go "github.com/tomnomnom/waybackurls"
     check_install gau || install_go "github.com/lc/gau/v2/cmd/gau"
     check_install ffuf || install_go "github.com/ffuf/ffuf/v2"
+    check_install httpx || install_go "github.com/projectdiscovery/httpx/cmd/httpx"
+    check_install nuclei || install_go "github.com/projectdiscovery/nuclei/v3/cmd/nuclei"
+    check_install naabu || install_go "github.com/projectdiscovery/naabu/v2/cmd/naabu"
+    check_install katana || install_go "github.com/projectdiscovery/katana/cmd/katana"
+    check_install dnsx || install_go "github.com/projectdiscovery/dnsx/cmd/dnsx"
+    check_install dalfox || install_go "github.com/hahwul/dalfox/v2"
+    check_install crlfuzz || install_go "github.com/dwisiswant0/crlfuzz/cmd/crlfuzz"
     
     echo ""
     echo "════════════════════════════════════════════════════"
@@ -137,7 +144,7 @@ main() {
     
     # Verify all tools
     echo ""
-    tools_list="subfinder amass assetfinder waybackurls gau ffuf gobuster feroxbuster nikto whatweb dnsrecon theharvester dnsenum curl openssl"
+    tools_list="subfinder amass assetfinder waybackurls gau ffuf httpx nuclei naabu katana dnsx dalfox crlfuzz gobuster feroxbuster sqlmap nikto whatweb dnsrecon theharvester dnsenum curl openssl jq"
     total=0
     found=0
     
